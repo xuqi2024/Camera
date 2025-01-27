@@ -4,37 +4,108 @@ project(video_streaming_app)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# 查找必要的包
-find_package(OpenCV REQUIRED)
-find_package(Threads REQUIRED)
-find_package(Boost 1.64 REQUIRED COMPONENTS system date_time)
+# 设置输出目录
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-# 添加 Crow 依赖（header-only 库）
-include(FetchContent)
-FetchContent_Declare(
-    Crow
-    GIT_REPOSITORY https://github.com/CrowCpp/Crow
-    GIT_TAG v1.0+5
-)
-FetchContent_MakeAvailable(Crow)
+# 确定目标平台
+if(CMAKE_CROSSCOMPILING)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+        set(PLATFORM_NAME "linux-aarch64")
+    else()
+        message(FATAL_ERROR "Unsupported platform")
+    endif()
+else()
+    set(PLATFORM_NAME "linux-x86_64")
+endif()
 
-# 包含目录
-include_directories(${OpenCV_INCLUDE_DIRS})
-include_directories(${CMAKE_SOURCE_DIR}/include)
+# 设置预编译目录
+set(PREBUILD_DIR ${CMAKE_SOURCE_DIR}/prebuild/${PLATFORM_NAME})
+set(THIRD_PARTY_DIR ${CMAKE_SOURCE_DIR}/3rdparty)
+
+# 添加cmake模块路径
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
+
+# 检查预编译库是否存在
+if(NOT EXISTS ${PREBUILD_DIR})
+    message(STATUS "Prebuild directory not found, will build from source")
+    set(BUILD_FROM_SOURCE TRUE)
+endif()
+
+if(BUILD_FROM_SOURCE)
+    # OpenCV配置
+    set(BUILD_LIST core imgproc objdetect videoio)
+    set(WITH_FFMPEG OFF)
+    set(WITH_GTK OFF)
+    set(WITH_QT OFF)
+    set(BUILD_TESTS OFF)
+    set(BUILD_PERF_TESTS OFF)
+    set(BUILD_opencv_apps OFF)
+    set(BUILD_EXAMPLES OFF)
+    set(WITH_PROTOBUF OFF)
+    set(WITH_QUIRC OFF)
+    set(WITH_CUDA OFF)
+    
+    add_subdirectory(${THIRD_PARTY_DIR}/opencv)
+    
+    # Poco配置
+    set(ENABLE_FOUNDATION ON)
+    set(ENABLE_NET ON)
+    set(ENABLE_NETSSL OFF)
+    set(ENABLE_CRYPTO OFF)
+    set(ENABLE_JWT OFF)
+    set(ENABLE_DATA OFF)
+    set(ENABLE_UTIL OFF)
+    set(ENABLE_XML OFF)
+    set(ENABLE_JSON ON)
+    set(ENABLE_MONGODB OFF)
+    set(ENABLE_REDIS OFF)
+    
+    add_subdirectory(${THIRD_PARTY_DIR}/poco)
+else()
+    # 使用预编译库
+    set(OpenCV_DIR ${PREBUILD_DIR}/lib/cmake/opencv4)
+    set(Poco_DIR ${PREBUILD_DIR}/lib/cmake/Poco)
+    
+    find_package(OpenCV REQUIRED)
+    find_package(Poco REQUIRED Foundation Net JSON)
+endif()
+
+# V4L2后端
+option(USE_V4L2 "Enable V4L2 backend" ON)
+if(USE_V4L2)
+    add_definitions(-DUSE_V4L2)
+endif()
 
 # 添加可执行文件
 add_executable(video_streaming_app
     src/main.cpp
-    src/video_capture.cpp
+    src/v4l2_capture.cpp
     src/web_server.cpp
+    src/image_processor.cpp
+    src/websocket_handler.cpp
 )
 
-# 链接库
+target_include_directories(video_streaming_app
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${PREBUILD_DIR}/include
+)
+
 target_link_libraries(video_streaming_app
     PRIVATE
-    ${OpenCV_LIBS}
-    Crow::Crow
+    opencv_core
+    opencv_imgproc
+    opencv_objdetect
+    opencv_videoio
+    Poco::Foundation
+    Poco::Net
+    Poco::JSON
     Threads::Threads
-    Boost::system
-    Boost::date_time
+)
+
+# 安装规则
+install(TARGETS video_streaming_app
+    RUNTIME DESTINATION bin
 ) 

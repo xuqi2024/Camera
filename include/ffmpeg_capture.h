@@ -1,5 +1,5 @@
 #pragma once
-#include <string>
+#include "capture_interface.h"
 #include <thread>
 #include <mutex>
 #include <atomic>
@@ -11,14 +11,14 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
-class VideoCapture {
+class FFmpegCapture : public CaptureInterface {
 public:
-    VideoCapture();
-    ~VideoCapture();
+    FFmpegCapture();
+    ~FFmpegCapture() override;
     
-    bool start(int device_id = 0);
-    void stop();
-    std::string getLatestFrame(); // 返回编码后的帧数据
+    bool start(int device_id = 0) override;
+    void stop() override;
+    std::string getLatestFrame() override;
 
 private:
     void captureLoop();

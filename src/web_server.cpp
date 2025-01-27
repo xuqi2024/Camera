@@ -1,11 +1,19 @@
 #include "web_server.h"
+#include <Poco/Net/HTTPServerParams.h>
+#include <Poco/Net/ServerSocket.h>
+#include <sstream>
 
-WebServer::WebServer(std::shared_ptr<VideoCapture> video_capture)
-    : video_capture_(video_capture) {
-    
-    // 提供静态HTML页面
-    CROW_ROUTE(app_, "/")([](){
-        return R"(
+using namespace Poco::Net;
+
+WebServer::RequestHandler::RequestHandler(std::shared_ptr<CaptureInterface> capture)
+    : video_capture_(capture) {}
+
+void WebServer::RequestHandler::handleRequest(HTTPServerRequest& request, 
+                                           HTTPServerResponse& response) {
+    if (request.getURI() == "/") {
+        response.setContentType("text/html");
+        std::ostream& out = response.send();
+        out << R"(
             <!DOCTYPE html>
             <html>
             <head>
@@ -22,18 +30,42 @@ WebServer::WebServer(std::shared_ptr<VideoCapture> video_capture)
             </body>
             </html>
         )";
-    });
-
-    // 视频流端点
-    CROW_ROUTE(app_, "/stream")
-    ([this](const crow::request&, crow::response& res){
-        auto frame = video_capture_->getLatestFrame();
-        res.set_header("Content-Type", "image/jpeg");
-        res.write(frame);
-        res.end();
-    });
+    } else if (request.getURI() == "/stream") {
+        response.setContentType("image/jpeg");
+        std::string frame = video_capture_->getLatestFrame();
+        response.sendBuffer(frame.data(), frame.size());
+    } else {
+        response.setStatus(HTTPResponse::HTTP_NOT_FOUND);
+        response.send();
+    }
 }
 
+WebServer::RequestHandlerFactory::RequestHandlerFactory(
+    std::shared_ptr<CaptureInterface> capture)
+    : video_capture_(capture) {}
+
+HTTPRequestHandler* WebServer::RequestHandlerFactory::createRequestHandler(
+    const HTTPServerRequest&) {
+    return new RequestHandler(video_capture_);
+}
+
+WebServer::WebServer(std::shared_ptr<CaptureInterface> video_capture)
+    : video_capture_(video_capture) {}
+
 void WebServer::start(int port) {
-    app_.port(port).run();
+    auto* params = new HTTPServerParams;
+    params->setMaxQueued(100);
+    params->setMaxThreads(4);
+
+    ServerSocket socket(port);
+    server_ = std::make_unique<HTTPServer>(
+        new RequestHandlerFactory(video_capture_), socket, params);
+    server_->start();
+}
+
+void WebServer::stop() {
+    if (server_) {
+        server_->stop();
+        server_.reset();
+    }
 } 
