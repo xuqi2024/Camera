@@ -1,1 +1,27 @@
+# 构建目录
 build/
+prebuild/
+
+# 编译产物
+*.o
+*.so
+*.a
+*.exe
+
+# IDE配置
+.vscode/
+.idea/
+
+# 模型文件
+models/*
+!models/.gitkeep
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 依赖目录
+3rdparty/*/
+
+# 日志文件
+*.log

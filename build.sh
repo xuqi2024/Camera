@@ -54,7 +54,8 @@ if [ "$2" = "aarch64" ]; then
 fi
 
 # 创建目录
-mkdir -p build
+print_step "创建目录结构"
+mkdir -p src include 3rdparty build
 mkdir -p prebuild/${PLATFORM}/{include,lib}
 
 # 配置编译类型
@@ -65,6 +66,12 @@ fi
 
 # 检测CPU核心数
 NUM_CORES=$(nproc)
+
+# 下载模型文件
+if [ ! -f "models/yolov4-tiny.weights" ]; then
+    print_step "下载模型文件"
+    ./download_models.sh
+fi
 
 # 编译第三方库（如果预编译目录不存在）
 if [ ! -d "prebuild/${PLATFORM}/lib/cmake" ]; then
@@ -86,6 +93,17 @@ if [ ! -d "prebuild/${PLATFORM}/lib/cmake" ]; then
     mkdir -p build/poco
     cd build/poco
     cmake ../../3rdparty/poco \
+        -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+        -DCMAKE_INSTALL_PREFIX=../../prebuild/${PLATFORM}
+    make -j${NUM_CORES}
+    make install
+    cd ../..
+
+    # 编译onnx
+    print_step "编译onnx"
+    mkdir -p build/onnxruntime
+    cd build/onnxruntime
+    cmake ../../3rdparty/onnxruntime \
         -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
         -DCMAKE_INSTALL_PREFIX=../../prebuild/${PLATFORM}
     make -j${NUM_CORES}
@@ -114,4 +132,49 @@ if [ -f "bin/video_streaming_app" ]; then
 else
     echo -e "${RED}编译失败!${NC}"
     exit 1
+fi
+
+# 在适当位置添加
+if ! command -v wget &> /dev/null; then
+    sudo apt-get install -y wget
+fi
+
+# 安装ONNX Runtime
+install_onnxruntime() {
+    print_step "安装ONNX Runtime"
+    ONNX_VERSION="1.15.1"
+    
+    # 下载预编译包
+    wget -c https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/onnxruntime-linux-x64-${ONNX_VERSION}.tgz
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}错误: 下载ONNX Runtime失败${NC}"
+        echo "尝试使用备用下载链接..."
+        wget -c https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/onnxruntime-linux-x64-gpu-${ONNX_VERSION}.tgz
+    fi
+    
+    # 解压并安装
+    tar xzf onnxruntime-linux-x64-*-${ONNX_VERSION}.tgz
+    
+    # 创建目录（如果不存在）
+    sudo mkdir -p /usr/local/include/onnxruntime
+    sudo mkdir -p /usr/local/lib
+    
+    # 复制文件
+    sudo cp -r onnxruntime-linux-x64*/include/* /usr/local/include/onnxruntime/
+    sudo cp -r onnxruntime-linux-x64*/lib/* /usr/local/lib/
+    
+    # 清理临时文件
+    rm -rf onnxruntime-linux-x64*
+    
+    # 更新库缓存
+    sudo ldconfig
+    
+    print_step "ONNX Runtime 安装完成"
+}
+
+# 检查ONNX Runtime是否已安装
+if [ ! -f "/usr/local/include/onnxruntime/onnxruntime_cxx_api.h" ] || \
+   [ ! -f "/usr/local/lib/libonnxruntime.so" ]; then
+    install_onnxruntime
 fi 

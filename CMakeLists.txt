@@ -4,6 +4,9 @@ project(video_streaming_app)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# 查找Threads包
+find_package(Threads REQUIRED)
+
 # 设置输出目录
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -25,7 +28,10 @@ set(PREBUILD_DIR ${CMAKE_SOURCE_DIR}/prebuild/${PLATFORM_NAME})
 set(THIRD_PARTY_DIR ${CMAKE_SOURCE_DIR}/3rdparty)
 
 # 添加cmake模块路径
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
+list(APPEND CMAKE_MODULE_PATH 
+    ${CMAKE_SOURCE_DIR}/cmake
+    ${CMAKE_SOURCE_DIR}/cmake/modules
+)
 
 # 检查预编译库是否存在
 if(NOT EXISTS ${PREBUILD_DIR})
@@ -68,7 +74,11 @@ else()
     set(OpenCV_DIR ${PREBUILD_DIR}/lib/cmake/opencv4)
     set(Poco_DIR ${PREBUILD_DIR}/lib/cmake/Poco)
     
-    find_package(OpenCV REQUIRED)
+    find_package(OpenCV REQUIRED COMPONENTS
+        core
+        imgproc
+        imgcodecs
+    )
     find_package(Poco REQUIRED Foundation Net JSON)
 endif()
 
@@ -78,31 +88,41 @@ if(USE_V4L2)
     add_definitions(-DUSE_V4L2)
 endif()
 
+# 查找ONNX Runtime
+find_package(ONNX REQUIRED)
+
+# 添加包含目录
+include_directories(
+    ${CMAKE_SOURCE_DIR}/include
+    ${ONNX_INCLUDE_DIRS}
+)
+
 # 添加可执行文件
 add_executable(video_streaming_app
     src/main.cpp
-    src/v4l2_capture.cpp
-    src/web_server.cpp
-    src/image_processor.cpp
-    src/websocket_handler.cpp
+    src/v4l2_capture.cpp      # V4L2实现
+    src/web_server.cpp        # Web服务器
+    src/image_processor.cpp   # 图像处理
 )
 
+# 设置包含目录
 target_include_directories(video_streaming_app
     PRIVATE
     ${CMAKE_SOURCE_DIR}/include
-    ${PREBUILD_DIR}/include
+    ${ONNX_INCLUDE_DIRS}
+    ${OpenCV_INCLUDE_DIRS}
+    ${Poco_INCLUDE_DIRS}
 )
 
+# 链接库
 target_link_libraries(video_streaming_app
     PRIVATE
-    opencv_core
-    opencv_imgproc
-    opencv_objdetect
-    opencv_videoio
+    ${ONNX_LIBRARIES}
+    ${OpenCV_LIBS}
     Poco::Foundation
     Poco::Net
     Poco::JSON
-    Threads::Threads
+    ${CMAKE_THREAD_LIBS_INIT}
 )
 
 # 安装规则
