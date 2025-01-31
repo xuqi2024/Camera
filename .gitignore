@@ -2,26 +2,31 @@
 build/
 prebuild/
 
-# 编译产物
-*.o
-*.so
-*.a
-*.exe
+# 第三方库
+3rdparty/
 
 # IDE配置
 .vscode/
 .idea/
 
-# 模型文件
-models/*
-!models/.gitkeep
+# 编译产物
+*.o
+*.so
+*.a
+
+# 临时文件
+*.swp
+*~
 
 # 系统文件
 .DS_Store
 Thumbs.db
 
-# 依赖目录
-3rdparty/*/
-
 # 日志文件
 *.log
+
+# 模型文件
+models/*
+!models/.gitkeep
+
+venv/*

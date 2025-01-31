@@ -8,7 +8,7 @@
 #include <opencv2/opencv.hpp>
 #include <vector>
 #include <string>
-#include <onnxruntime/onnxruntime_cxx_api.h>  // 修改包含路径
+#include <onnxruntime/onnxruntime_cxx_api.h>
 
 /**
  * @struct DetectionResult

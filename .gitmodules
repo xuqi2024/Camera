@@ -13,4 +13,11 @@
 [submodule "3rdparty/onnxruntime"]
     path = 3rdparty/onnxruntime
     url = https://github.com/microsoft/onnxruntime.git
-	shallow = true
+    branch = v1.17.0
+    shallow = true
+
+[submodule "3rdparty/protobuf"]
+    path = 3rdparty/protobuf
+    url = https://github.com/protocolbuffers/protobuf.git
+    branch = v3.20.2
+    shallow = true

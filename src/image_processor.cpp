@@ -21,9 +21,26 @@ void ImageProcessor::loadModel() {
     // 检查模型文件
     const std::string model_path = "models/yolov11n.onnx";
     const std::string names_path = "models/coco.names";
+    
+    // 打印模型路径
+    char abs_model_path[PATH_MAX];
+    if (realpath(model_path.c_str(), abs_model_path) != nullptr) {
+        std::cout << "模型文件应位于: " << abs_model_path << std::endl;
+    } else {
+        std::cout << "模型文件应位于当前目录下的: " << abs_model_path << std::endl;
+    }
 
-    std::ifstream model_file(model_path, std::ios::binary);
-    std::ifstream names_file(names_path);
+    
+    // 打印模型路径
+    char abs_names_path[PATH_MAX];
+    if (realpath(names_path.c_str(), abs_names_path) != nullptr) {
+        std::cout << "模型文件应位于: " << abs_names_path << std::endl;
+    } else {
+        std::cout << "模型文件应位于当前目录下的: " << abs_names_path << std::endl;
+    }
+
+    std::ifstream model_file(abs_model_path, std::ios::binary);
+    std::ifstream names_file(abs_names_path);
     if (!model_file.good() || !names_file.good()) {
         throw std::runtime_error("找不到模型文件，请先运行download_models.sh下载所需文件");
     }
@@ -42,8 +59,14 @@ void ImageProcessor::loadModel() {
 
         // 获取输入输出节点名称
         Ort::AllocatorWithDefaultOptions allocator;
-        input_names_.push_back(session_->GetInputName(0, allocator));
-        output_names_.push_back(session_->GetOutputName(0, allocator));
+        
+        // 获取输入节点名称 - 使用新的API
+        auto input_name = session_->GetInputNameAllocated(0, allocator);
+        input_names_.push_back(input_name.get());
+        
+        // 获取输出节点名称 - 使用新的API
+        auto output_name = session_->GetOutputNameAllocated(0, allocator);
+        output_names_.push_back(output_name.get());
 
         // 加载类别名称
         std::string line;

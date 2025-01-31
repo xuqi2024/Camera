@@ -8,41 +8,100 @@ NC='\033[0m'
 # 创建模型目录
 mkdir -p models
 
+# 下载并验证模型文件
+download_model() {
+    local url="$1"
+    local output="$2"
+    local max_retries=3
+    local retry_count=0
+    
+    while [ $retry_count -lt $max_retries ]; do
+        echo "下载模型文件 (尝试 $((retry_count + 1))/$max_retries)..."
+        if wget --no-verbose --show-progress -c -O "${output}.tmp" "$url"; then
+            # 移动临时文件到目标位置
+            mv "${output}.tmp" "$output"
+            return 0
+        fi
+        
+        retry_count=$((retry_count + 1))
+        if [ $retry_count -lt $max_retries ]; then
+            echo "下载失败，等待 5 秒后重试..."
+            sleep 5
+        fi
+    done
+    
+    return 1
+}
+
 # 下载并转换YOLOv11n模型
 download_yolov11() {
     echo "正在下载YOLOv11n模型..."
     
-    # 下载PT模型
-    if ! wget -c -O models/yolov11n.pt "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt"; then
-        echo -e "${RED}错误: YOLOv11n PT模型下载失败${NC}"
-        return 1
+    # 检查ONNX模型是否已存在
+    if [ -f "models/yolov11n.onnx" ]; then
+        echo -e "${GREEN}ONNX模型已存在，跳过下载和转换${NC}"
+        return 0
+    fi
+    
+    # 检查PT模型是否已存在
+    if [ ! -f "models/yolov11n.pt" ]; then
+        # 下载PT模型
+        if ! download_model \
+            "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt" \
+            "models/yolov11n.pt"; then
+            echo -e "${RED}错误: YOLOv11n PT模型下载失败${NC}"
+            return 1
+        fi
+    else
+        echo "PT模型已存在，跳过下载"
     fi
     
     echo "正在转换模型为ONNX格式..."
     
-    # 创建虚拟环境
-    python3 -m venv venv
+    # 检查是否已存在虚拟环境
+    if [ ! -d "venv" ]; then
+        echo "创建新的虚拟环境..."
+        python3 -m venv venv
+    else
+        echo "使用已存在的虚拟环境"
+    fi
+    
+    # 激活虚拟环境
     source venv/bin/activate
     
-    # 安装最新版本的ultralytics和onnx
-    pip install --upgrade pip
-    pip install ultralytics
-    pip install onnx
+    # 安装所需包
+    echo "安装必要的Python包..."
+    python3 -m pip install --upgrade pip
+    python3 -m pip install wheel setuptools  
+    # 安装特定版本的依赖
+    python3 -m pip install onnxruntime==1.17.0
+
+    python3 -m pip install ultralytics onnx
+    python3 -m pip install onnxslim
+    
+    # 验证安装
+    if ! python3 -c "import ultralytics; import onnxruntime; import onnx" 2>/dev/null; then
+        echo -e "${RED}错误: Python包安装失败${NC}"
+        deactivate
+        return 1
+    fi
     
     # 转换模型
     python3 -c "
 from ultralytics import YOLO
+# 加载并导出模型
 model = YOLO('models/yolov11n.pt')
-success = model.export(format='onnx', dynamic=True, simplify=True)
+success = model.export(format='onnx', dynamic=True, simplify=False, opset=11)
+if not success:
+    raise RuntimeError('Model export failed')
 "
     
     # 检查转换结果
-    if [ -f "models/yolov11n.onnx" ]; then
+    if [ -f "yolov11n.onnx" ]; then
+        mv yolov11n.onnx models/yolov11n.onnx
         echo -e "${GREEN}模型转换成功${NC}"
-        # 清理PT模型和虚拟环境
         rm -f models/yolov11n.pt
         deactivate
-        rm -rf venv
         return 0
     else
         echo -e "${RED}错误: 模型转换失败${NC}"

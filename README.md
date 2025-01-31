@@ -1,134 +1,87 @@
-# 智能视频监控系统
+# 视频流处理系统
 
-基于V4L2和YOLOv8的实时视频监控和目标检测系统。
+这是一个基于OpenCV和ONNX Runtime的视频流处理系统，支持实时视频捕获、目标检测和远程查看。
 
-## 功能特点
-
-### 视频捕获
-- 使用V4L2直接与摄像头设备交互
-- 支持YUYV格式视频流
-- 实时JPEG编码和压缩
-- 高效的内存映射(MMAP)实现
-
-### 目标检测
-- 集成YOLOv8目标检测模型
-- ONNX Runtime高性能推理
-- 支持80种常见物体识别
-- 可调节的检测置信度阈值
-
-### Web界面
-- 基于WebSocket的实时视频流
-- 响应式设计的控制面板
-- 实时检测结果显示
-- FPS和性能监控
-- 支持截图和视频录制
-
-## 系统要求
-
-### 硬件要求
-- 支持V4L2的USB摄像头
-- x86_64或ARM处理器
-- 至少2GB内存
-
-### 软件要求
-- Ubuntu 20.04或更高版本
-- C++17兼容编译器
-- CMake 3.10+
-- OpenCV 4.x
-- ONNX Runtime
-- Poco库
-
-## 快速开始
-
-1. 安装系统依赖：
+## 项目结构
 
 ```
+.
+├── CMakeLists.txt              # 主CMake配置文件
+├── include/                    # 头文件目录
+├── src/                        # 源代码目录
+├── examples/                   # 测试示例程序
+├── models/                     # 模型文件目录
+├── prebuild/                   # 预编译库目录
+└── 3rdparty/                  # 第三方库源码
+```
+
+## 功能特性
+
+- 实时视频捕获（支持V4L2）
+- YOLO目标检测
+- WebSocket远程查看
+- GUI本地查看
+- 支持x86_64和aarch64架构
+
+## 构建说明
+
+### 依赖项
+
+```bash
+# 安装基本构建工具
 sudo apt-get update
 sudo apt-get install -y build-essential cmake
+
+# 安装OpenCV
 sudo apt-get install -y libopencv-dev
+
+# 安装Poco库
+sudo apt-get install -y libpoco-dev
+
+# 安装GUI依赖（可选）
+sudo apt-get install -y qtbase5-dev qtchooser qt5-qmake qtbase5-dev-tools
 ```
 
-2. 克隆仓库：
+### 编译
 
 ```bash
-git clone https://github.com/yourusername/video-surveillance.git
-cd video-surveillance
+# 创建构建目录
+mkdir build && cd build
+
+# 配置
+cmake ..
+
+# 编译
+make -j$(nproc)
 ```
 
-3. 下载模型：
+## 使用说明
 
+1. 启动主程序：
 ```bash
-chmod +x download_models.sh
-./download_models.sh
+./bin/video_streaming_app
 ```
 
-4. 编译项目：
-
+2. 运行测试程序：
 ```bash
-chmod +x build.sh
-./build.sh
+# WebSocket测试
+./bin/test_websocket
+
+# GUI测试
+./bin/test_gui
 ```
 
-5. 运行程序：
+## 开发指南
 
-```bash
-./build/bin/video_streaming_app
-```
+详细的开发文档请参考各目录下的README文件：
+- [examples/README.md](examples/README.md) - 测试程序说明
+- [include/README.md](include/README.md) - API文档
+- [src/README.md](src/README.md) - 实现说明
 
-6. 打开浏览器访问：
+## 故障排除
 
-```
-http://localhost:8080
-```
-
-## 实现说明
-
-### 视频捕获模块
-- 轻量级V4L2实现
-- 直接设备访问
-- 高效内存管理
-- 实时格式转换
-
-### 目标检测模块
-- YOLOv8神经网络
-- ONNX Runtime优化
-- 异步处理设计
-- 可配置检测参数
-
-### Web服务器模块
-- Poco库实现
-- WebSocket实时传输
-- 二进制帧推送
-- JSON结果通信
-
-## 详细文档
-
-- [架构设计](docs/architecture/README.md)
-- [API文档](docs/api/README.md)
-- [安装指南](docs/setup/README.md)
-- [使用示例](docs/examples/README.md)
-- [开发指南](docs/development/README.md)
-- [性能优化](docs/optimization/README.md)
-
-## 贡献指南
-
-1. Fork 项目
-2. 创建特性分支
-3. 提交更改
-4. 推送到分支
-5. 创建Pull Request
+常见问题及解决方法请参考 [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 
 ## 许可证
 
-MIT License
-
-## 作者
-
-[你的名字]
-
-## 致谢
-
-- OpenCV团队
-- Ultralytics YOLOv8
-- Poco项目
-- 所有贡献者
+[License信息]

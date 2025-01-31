@@ -20,6 +20,10 @@ print_warning() {
     echo -e "${YELLOW}警告: $1${NC}"
 }
 
+print_error() {
+    echo -e "${RED}错误: $1${NC}"
+}
+
 # 检查必要的命令
 check_command() {
     if ! command -v $1 &> /dev/null; then
@@ -48,9 +52,10 @@ git checkout poco-1.12.4-release
 cd ../..
 
 # 确定目标平台
-PLATFORM="linux-x86_64"
-if [ "$2" = "aarch64" ]; then
+if [ "$(uname -m)" = "aarch64" ]; then
     PLATFORM="linux-aarch64"
+else
+    PLATFORM="linux-x86_64"
 fi
 
 # 创建目录
@@ -68,49 +73,65 @@ fi
 NUM_CORES=$(nproc)
 
 # 下载模型文件
-if [ ! -f "models/yolov4-tiny.weights" ]; then
+if [ ! -f "models/yolov11n.onnx" ]; then
     print_step "下载模型文件"
     ./download_models.sh
 fi
 
-# 编译第三方库（如果预编译目录不存在）
-if [ ! -d "prebuild/${PLATFORM}/lib/cmake" ]; then
-    print_step "编译第三方库"
+# 在build.sh开头添加
+check_prebuild() {
+    local platform=$1
+    echo "检查预编译库目录: prebuild/${platform}"
     
-    # 编译OpenCV
-    print_step "编译OpenCV"
-    mkdir -p build/opencv
-    cd build/opencv
-    cmake ../../3rdparty/opencv \
-        -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-        -DCMAKE_INSTALL_PREFIX=../../prebuild/${PLATFORM}
-    make -j${NUM_CORES}
-    make install
-    cd ../..
+    # 检查必要的目录和文件
+    local required_paths=(
+        "prebuild/${platform}/include/onnxruntime/onnxruntime_cxx_api.h"
+        "prebuild/${platform}/lib/libonnxruntime.so"
+        "prebuild/${platform}/lib/cmake/opencv4"
+        "prebuild/${platform}/lib/cmake/Poco"
+    )
     
-    # 编译Poco
-    print_step "编译Poco"
-    mkdir -p build/poco
-    cd build/poco
-    cmake ../../3rdparty/poco \
-        -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-        -DCMAKE_INSTALL_PREFIX=../../prebuild/${PLATFORM}
-    make -j${NUM_CORES}
-    make install
-    cd ../..
+    for path in "${required_paths[@]}"; do
+        if [ ! -e "$path" ]; then
+            echo "缺少文件: $path"
+            return 1
+        fi
+    done
+    
+    return 0
+}
 
-    # 编译onnx
-    print_step "编译onnx"
-    mkdir -p build/onnxruntime
-    cd build/onnxruntime
-    cmake ../../3rdparty/onnxruntime \
-        -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-        -DCMAKE_INSTALL_PREFIX=../../prebuild/${PLATFORM}
-    make -j${NUM_CORES}
-    make install
-    cd ../..
-else
+# 检查预编译库
+print_step "检查预编译库"
+if check_prebuild ${PLATFORM}; then
     print_warning "使用预编译库"
+    BUILD_FROM_SOURCE=false
+else
+    print_step "预编译库不完整，将从源码构建"
+    BUILD_FROM_SOURCE=true
+fi
+
+# 如果需要从源码构建
+if [ "$BUILD_FROM_SOURCE" = true ]; then
+    # 设置PLATFORM_NAME变量
+    export PLATFORM_NAME=${PLATFORM}
+    
+    # 运行下载和编译脚本
+    print_step "下载和编译依赖"
+    # 确保scripts目录存在
+    if [ ! -d "scripts" ]; then
+        print_error "scripts目录不存在"
+        exit 1
+    fi
+    
+    # 运行下载脚本
+    ./scripts/download_deps.sh
+    if [ $? -ne 0 ]; then
+        print_error "下载依赖失败"
+        exit 1
+    fi
+else
+    print_warning "使用预编译库，跳过下载和编译"
 fi
 
 # 编译项目
@@ -132,49 +153,4 @@ if [ -f "bin/video_streaming_app" ]; then
 else
     echo -e "${RED}编译失败!${NC}"
     exit 1
-fi
-
-# 在适当位置添加
-if ! command -v wget &> /dev/null; then
-    sudo apt-get install -y wget
-fi
-
-# 安装ONNX Runtime
-install_onnxruntime() {
-    print_step "安装ONNX Runtime"
-    ONNX_VERSION="1.15.1"
-    
-    # 下载预编译包
-    wget -c https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/onnxruntime-linux-x64-${ONNX_VERSION}.tgz
-    
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}错误: 下载ONNX Runtime失败${NC}"
-        echo "尝试使用备用下载链接..."
-        wget -c https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/onnxruntime-linux-x64-gpu-${ONNX_VERSION}.tgz
-    fi
-    
-    # 解压并安装
-    tar xzf onnxruntime-linux-x64-*-${ONNX_VERSION}.tgz
-    
-    # 创建目录（如果不存在）
-    sudo mkdir -p /usr/local/include/onnxruntime
-    sudo mkdir -p /usr/local/lib
-    
-    # 复制文件
-    sudo cp -r onnxruntime-linux-x64*/include/* /usr/local/include/onnxruntime/
-    sudo cp -r onnxruntime-linux-x64*/lib/* /usr/local/lib/
-    
-    # 清理临时文件
-    rm -rf onnxruntime-linux-x64*
-    
-    # 更新库缓存
-    sudo ldconfig
-    
-    print_step "ONNX Runtime 安装完成"
-}
-
-# 检查ONNX Runtime是否已安装
-if [ ! -f "/usr/local/include/onnxruntime/onnxruntime_cxx_api.h" ] || \
-   [ ! -f "/usr/local/lib/libonnxruntime.so" ]; then
-    install_onnxruntime
 fi 
